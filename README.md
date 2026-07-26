@@ -11,7 +11,7 @@
 
 ## 📍 Deployed Network Details
 
-* **Intelligent Contract Address (StudioNet)**: `0xcF9D961d48a0210480B91B094861647D278c1726`
+* **Intelligent Contract Address (StudioNet)**: `0x54FF25A9540d256e17bB4C1534A8BB5F87d0fE66`
 * **Live Production dApp**: [https://aerogreen-app.vercel.app](https://aerogreen-app.vercel.app)
 * **GitHub Repository**: [https://github.com/Tannpd/aerogreen](https://github.com/Tannpd/aerogreen)
 * **Public Climate Action Fund Address**: `0x000000000000000000000000000000000000C11M`
