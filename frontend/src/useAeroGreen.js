@@ -33,6 +33,29 @@ function getWriteClient(account) {
   return createClient({ chain: customStudionet, account });
 }
 
+// Persistent account helper: guarantees exact same keypair and address across operations
+function getStoredAccount() {
+  try {
+    const storedPk = localStorage.getItem('genlayer_aerogreen_pk');
+    if (storedPk && storedPk.startsWith('0x') && storedPk.length === 66) {
+      return createAccount(storedPk);
+    }
+  } catch (e) {
+    console.warn('LocalStorage PK read warning:', e);
+  }
+  
+  // Generate new keypair and persist
+  const newAcc = createAccount();
+  if (newAcc && newAcc.privateKey) {
+    try {
+      localStorage.setItem('genlayer_aerogreen_pk', newAcc.privateKey);
+    } catch (e) {
+      console.warn('LocalStorage PK write warning:', e);
+    }
+  }
+  return newAcc;
+}
+
 // Convert Wei (u256) to human readable GEN string
 export function formatGen(weiVal) {
   if (!weiVal) return '0';
@@ -78,32 +101,16 @@ export function useAeroGreen() {
   // ONLY triggered when user explicitly clicks "Connect Wallet"
   const connectWallet = useCallback(async () => {
     try {
-      let selectedAddr = '';
-      if (window.ethereum) {
-        try {
-          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-          if (accounts && accounts.length > 0) {
-            selectedAddr = accounts[0];
-          }
-        } catch (e) {
-          console.warn('MetaMask connect skipped or rejected:', e);
-        }
-      }
-      
-      const acc = createAccount();
-      if (!selectedAddr) {
-        selectedAddr = acc.address || '0x8aB6Fd746F8928E116fd14850DE855a8A10eea13';
-      }
-      setAddress(selectedAddr);
+      const acc = getStoredAccount();
+      setAddress(acc.address);
       setGlAccount(acc);
-      return selectedAddr;
+      return acc.address;
     } catch (err) {
       console.error('Wallet connect error:', err);
-      const acc = createAccount();
-      const fallbackAddr = acc.address || '0x8aB6Fd746F8928E116fd14850DE855a8A10eea13';
-      setAddress(fallbackAddr);
-      setGlAccount(acc);
-      return fallbackAddr;
+      const fallbackAcc = createAccount();
+      setAddress(fallbackAcc.address);
+      setGlAccount(fallbackAcc);
+      return fallbackAcc.address;
     }
   }, []);
 
@@ -151,9 +158,8 @@ export function useAeroGreen() {
 
   // Register Flight ESG Stake
   const registerFlightEsgStake = async (flightCode, flightLogUrl, stakeAmountGen) => {
-    let currentAccount = glAccount;
-    if (!currentAccount) {
-      currentAccount = createAccount();
+    let currentAccount = glAccount || getStoredAccount();
+    if (!glAccount) {
       setGlAccount(currentAccount);
       setAddress(currentAccount.address);
     }
@@ -203,9 +209,8 @@ export function useAeroGreen() {
 
   // Audit Flight Carbon Offset
   const auditFlightCarbonOffset = async (flightId, carbonRegistryUrl) => {
-    let currentAccount = glAccount;
-    if (!currentAccount) {
-      currentAccount = createAccount();
+    let currentAccount = glAccount || getStoredAccount();
+    if (!glAccount) {
       setGlAccount(currentAccount);
       setAddress(currentAccount.address);
     }
@@ -252,9 +257,8 @@ export function useAeroGreen() {
 
   // Recover ESG Stake
   const recoverEsgStake = async (flightId) => {
-    let currentAccount = glAccount;
-    if (!currentAccount) {
-      currentAccount = createAccount();
+    let currentAccount = glAccount || getStoredAccount();
+    if (!glAccount) {
       setGlAccount(currentAccount);
       setAddress(currentAccount.address);
     }
