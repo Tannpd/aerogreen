@@ -19,10 +19,7 @@ import {
   Cpu,
   ArrowRight,
   Shield,
-  Leaf,
   Flame,
-  Check,
-  XCircle,
   Award
 } from 'lucide-react';
 
@@ -48,7 +45,7 @@ export default function App() {
   
   // Form inputs
   const [flightCodeInput, setFlightCodeInput] = useState('VN-302');
-  const [logUrlInput, setLogUrlInput] = useState('https://aerogreen.vercel.app/mock_flight_telemetry_log.txt');
+  const [logUrlInput, setLogUrlInput] = useState('https://aerogreen-app.vercel.app/mock_flight_telemetry_log.txt');
   const [stakeAmountInput, setStakeAmountInput] = useState('10.0');
   const [carbonRegistryUrlInput, setCarbonRegistryUrlInput] = useState('');
 
@@ -67,7 +64,7 @@ export default function App() {
     try {
       await registerFlightEsgStake(flightCodeInput, logUrlInput, stakeAmountInput);
       setFlightCodeInput('VN-302');
-      setLogUrlInput('https://aerogreen.vercel.app/mock_flight_telemetry_log.txt');
+      setLogUrlInput('https://aerogreen-app.vercel.app/mock_flight_telemetry_log.txt');
       setStakeAmountInput('10.0');
       setActiveTab('REGISTRY');
       setSelectedFlightId(0);
@@ -100,7 +97,6 @@ export default function App() {
   // Compute stat summary metrics
   const verifiedCount = flights.filter(f => f.status === 'VERIFIED' || f.status === 'RECOVERED').length;
   const slashedCount = flights.filter(f => f.status === 'SLASHED').length;
-  const registeredCount = flights.filter(f => f.status === 'REGISTERED').length;
 
   return (
     <div className="app-container">
@@ -288,32 +284,6 @@ export default function App() {
               </p>
             </div>
           </div>
-
-          {/* How It Works Section */}
-          <div className="how-it-works-panel">
-            <h2 className="section-heading">How AeroGreen Protocol Works</h2>
-            <p className="section-sub">A transparent 3-step ESG verification lifecycle for Net-Zero flights</p>
-
-            <div className="steps-container">
-              <div className="step-box">
-                <div className="step-number">01</div>
-                <h4 className="step-title">Register Flight & Lock Stake</h4>
-                <p className="step-desc">Airline registers flight code and locks GEN collateral stake in <code className="code-tag">register_flight_esg_stake</code> with telemetry log URL.</p>
-              </div>
-
-              <div className="step-box">
-                <div className="step-number">02</div>
-                <h4 className="step-title">Audit Carbon Credit Certificate</h4>
-                <p className="step-desc">Auditor or public submits retired carbon credit URL. AI nodes scrape fuel consumption and offset registry to check emission coverage.</p>
-              </div>
-
-              <div className="step-box">
-                <div className="step-number">03</div>
-                <h4 className="step-title">Verified Badge or Stake Slash</h4>
-                <p className="step-desc">Verified Net-Zero flights allow airline collateral recovery. Greenwashed flights suffer 100% collateral slash to a public climate fund.</p>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -393,7 +363,7 @@ export default function App() {
                     <label className="form-label">FLIGHT FUEL TELEMETRY LOG URL</label>
                     <input 
                       type="text" 
-                      placeholder="https://aerogreen.vercel.app/mock_flight_telemetry_log.txt" 
+                      placeholder="https://aerogreen-app.vercel.app/mock_flight_telemetry_log.txt" 
                       value={logUrlInput}
                       onChange={(e) => setLogUrlInput(e.target.value)}
                       className="form-input"
@@ -595,7 +565,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   className="preset-btn preset-btn-emerald"
-                                  onClick={() => setCarbonRegistryUrlInput('https://aerogreen.vercel.app/mock_valid_carbon_offset.txt')}
+                                  onClick={() => setCarbonRegistryUrlInput('https://aerogreen-app.vercel.app/mock_valid_carbon_offset.txt')}
                                 >
                                   <Award size={14} />
                                   + Fill Valid Offset Certificate (Verify Flight)
@@ -604,7 +574,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   className="preset-btn preset-btn-rose"
-                                  onClick={() => setCarbonRegistryUrlInput('https://aerogreen.vercel.app/mock_junk_carbon_offset.txt')}
+                                  onClick={() => setCarbonRegistryUrlInput('https://aerogreen-app.vercel.app/mock_junk_carbon_offset.txt')}
                                 >
                                   <Flame size={14} />
                                   + Fill Junk Offset Certificate (Trigger 100% Slash)
@@ -616,8 +586,8 @@ export default function App() {
                                   <label className="form-label">RETIRED CARBON CREDIT CERTIFICATE URL (Verra, Gold Standard Registry)</label>
                                   <input 
                                     type="text" 
-                                    placeholder="https://aerogreen.vercel.app/mock_valid_carbon_offset.txt" 
-                                    value={carbonRegistryUrlInput || 'https://aerogreen.vercel.app/mock_valid_carbon_offset.txt'}
+                                    placeholder="https://aerogreen-app.vercel.app/mock_valid_carbon_offset.txt" 
+                                    value={carbonRegistryUrlInput || 'https://aerogreen-app.vercel.app/mock_valid_carbon_offset.txt'}
                                     onChange={(e) => setCarbonRegistryUrlInput(e.target.value)}
                                     className="form-input"
                                     required
@@ -640,7 +610,7 @@ export default function App() {
                               </form>
 
                               {/* Airline Recover Stake Button */}
-                              {address.toLowerCase() === selectedFlight.airline.toLowerCase() && selectedFlight.status === 'VERIFIED' && Number(selectedFlight.esg_stake) > 0 && (
+                              {address && address.toLowerCase() === selectedFlight.airline.toLowerCase() && selectedFlight.status === 'VERIFIED' && Number(selectedFlight.esg_stake) > 0 && (
                                 <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '16px' }}>
                                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
                                     STAKE RECOVERY: Verified Net-Zero flight. Airline is eligible to recover collateral stake.
@@ -662,7 +632,7 @@ export default function App() {
                               <div style={{ background: '#0D131F', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)', color: 'var(--primary-emerald)', textAlign: 'center', fontSize: '13px', fontWeight: 600, marginBottom: '16px' }}>
                                 Authentic Carbon Offset Verified! Flight is Certified Net-Zero.
                               </div>
-                              {address.toLowerCase() === selectedFlight.airline.toLowerCase() && Number(selectedFlight.esg_stake) > 0 && (
+                              {address && address.toLowerCase() === selectedFlight.airline.toLowerCase() && Number(selectedFlight.esg_stake) > 0 && (
                                 <button 
                                   onClick={handleRecoverStake} 
                                   className="btn-primary"
