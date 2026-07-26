@@ -3,6 +3,7 @@ import { createClient, createAccount } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
+const STUDIONET_DEFAULT_PK = '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba';
 
 // Custom chain that proxies RPC through Vercel same-origin to bypass browser CORS policies
 const getRpcEndpoint = () => {
@@ -33,7 +34,7 @@ function getWriteClient(account) {
   return createClient({ chain: customStudionet, account });
 }
 
-// Persistent account helper: guarantees exact same keypair and address across operations
+// Persistent account helper: defaults to StudioNet Account 0 (0x8aB6...ea13)
 function getStoredAccount(customPk) {
   if (customPk && customPk.startsWith('0x') && customPk.length === 66) {
     const acc = createAccount(customPk);
@@ -52,16 +53,12 @@ function getStoredAccount(customPk) {
     console.warn('LocalStorage PK read warning:', e);
   }
   
-  // Generate new keypair and persist
-  const newAcc = createAccount();
-  if (newAcc && newAcc.privateKey) {
-    try {
-      localStorage.setItem('genlayer_aerogreen_pk', newAcc.privateKey);
-    } catch (e) {
-      console.warn('LocalStorage PK write warning:', e);
-    }
-  }
-  return newAcc;
+  // Default to StudioNet Account 0 (0x8aB6Fd746F8928E116fd14850DE855a8A10eea13)
+  const defaultAcc = createAccount(STUDIONET_DEFAULT_PK);
+  try {
+    localStorage.setItem('genlayer_aerogreen_pk', defaultAcc.privateKey);
+  } catch (e) {}
+  return defaultAcc;
 }
 
 // Convert Wei (u256) to human readable GEN string
@@ -106,7 +103,7 @@ export function useAeroGreen() {
   const [txHash, setTxHash] = useState('');
   const [txStatus, setTxStatus] = useState('');
 
-  // Trigger MetaMask popup or connect persistent GenLayer account
+  // Connect wallet to StudioNet default account or MetaMask
   const connectWallet = useCallback(async () => {
     try {
       let selectedAddr = '';
@@ -147,6 +144,17 @@ export function useAeroGreen() {
       console.error('Invalid private key:', e);
       throw new Error('Invalid Private Key. Must be a 32-byte hex string starting with 0x.');
     }
+  };
+
+  // Reset to StudioNet Account 0
+  const resetToDefaultWallet = () => {
+    try {
+      localStorage.removeItem('genlayer_aerogreen_pk');
+    } catch (e) {}
+    const defaultAcc = createAccount(STUDIONET_DEFAULT_PK);
+    setAddress(defaultAcc.address);
+    setGlAccount(defaultAcc);
+    return defaultAcc.address;
   };
 
   // Generate a brand new wallet address
@@ -369,6 +377,7 @@ export function useAeroGreen() {
     txStatus,
     connectWallet,
     switchAccount,
+    resetToDefaultWallet,
     generateNewWallet,
     fetchFlightsState,
     registerFlightEsgStake,
