@@ -3,10 +3,8 @@ import { createClient, createAccount } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || '';
-// StudioNet Default Account 0: Address 0x8aB6Fd746F8928E116fd14850DE855a8A10eea13
-const STUDIONET_DEFAULT_PK = '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba';
 
-// Custom chain proxying RPC through Vercel same-origin to bypass browser CORS rules
+// Custom chain that proxies RPC through Vercel same-origin to bypass browser CORS policies
 const getRpcEndpoint = () => {
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     return `${window.location.origin}/api/rpc`;
@@ -35,36 +33,25 @@ function getWriteClient(account) {
   return createClient({ chain: customStudionet, account });
 }
 
-/**
- * Account Manager: Ensures exact 1:1 match between UI displayed address and transaction signing account.
- */
-function getStoredAccount(customPk) {
-  if (customPk && customPk.startsWith('0x') && customPk.length === 66) {
-    const acc = createAccount(customPk);
-    try {
-      localStorage.setItem('genlayer_aerogreen_pk', acc.privateKey);
-    } catch (e) {}
-    return acc;
-  }
-
+// Get or create persistent GenLayer StudioNet Account (so address on UI matches transaction signer 100%)
+function getOrCreateGenLayerAccount() {
+  if (typeof window === 'undefined') return createAccount();
   try {
-    const storedPk = localStorage.getItem('genlayer_aerogreen_pk');
-    if (storedPk && storedPk.startsWith('0x') && storedPk.length === 66) {
-      return createAccount(storedPk);
+    const savedPk = localStorage.getItem('aerogreen_genlayer_pk');
+    if (savedPk && savedPk.startsWith('0x') && savedPk.length === 66) {
+      return createAccount(savedPk);
     }
+    const newAcc = createAccount();
+    if (newAcc && newAcc.privateKey) {
+      localStorage.setItem('aerogreen_genlayer_pk', newAcc.privateKey);
+    }
+    return newAcc;
   } catch (e) {
-    console.warn('LocalStorage PK read warning:', e);
+    return createAccount();
   }
-  
-  // Default to StudioNet Account 0 (0x8aB6Fd746F8928E116fd14850DE855a8A10eea13)
-  const defaultAcc = createAccount(STUDIONET_DEFAULT_PK);
-  try {
-    localStorage.setItem('genlayer_aerogreen_pk', defaultAcc.privateKey);
-  } catch (e) {}
-  return defaultAcc;
 }
 
-// Convert Wei (u256 BigInt) to human-readable GEN string
+// Convert Wei (u256) to human readable GEN string
 export function formatGen(weiVal) {
   if (!weiVal) return '0';
   try {
@@ -82,7 +69,7 @@ export function formatGen(weiVal) {
   }
 }
 
-// Convert human-readable GEN input string to Wei (u256 BigInt)
+// Convert human readable GEN input to Wei (u256 BigInt)
 export function parseGen(genVal) {
   if (!genVal || genVal.toString().trim() === '') return 0n;
   try {
@@ -106,66 +93,22 @@ export function useAeroGreen() {
   const [txHash, setTxHash] = useState('');
   const [txStatus, setTxStatus] = useState('');
 
-  // Unify UI address and transaction signer account 100%
-  const setAccountState = useCallback((acc) => {
-    setGlAccount(acc);
-    setAddress(acc.address);
-    return acc.address;
-  }, []);
-
-  // Connect / Activate Account
+  // Explicitly connect or activate GenLayer StudioNet Wallet
   const connectWallet = useCallback(async () => {
     try {
-      if (typeof window !== 'undefined' && window.ethereum) {
-        try {
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
-        } catch (e) {
-          console.warn('MetaMask connect prompt skipped:', e);
-        }
-      }
-      
-      const acc = getStoredAccount();
-      return setAccountState(acc);
+      const acc = getOrCreateGenLayerAccount();
+      setGlAccount(acc);
+      setAddress(acc.address);
+      return acc.address;
     } catch (err) {
       console.error('Wallet connect error:', err);
-      const fallbackAcc = getStoredAccount();
-      return setAccountState(fallbackAcc);
+      const acc = createAccount();
+      setGlAccount(acc);
+      setAddress(acc.address);
+      return acc.address;
     }
-  }, [setAccountState]);
+  }, []);
 
-  // Switch wallet by custom Private Key
-  const switchAccount = (privateKeyHex) => {
-    try {
-      const formattedPk = privateKeyHex.trim();
-      const acc = getStoredAccount(formattedPk);
-      return setAccountState(acc);
-    } catch (e) {
-      console.error('Invalid private key:', e);
-      throw new Error('Invalid Private Key. Must be a 32-byte hex string starting with 0x.');
-    }
-  };
-
-  // Reset to StudioNet Account 0 (0x8aB6...ea13)
-  const resetToDefaultWallet = () => {
-    try {
-      localStorage.removeItem('genlayer_aerogreen_pk');
-    } catch (e) {}
-    const defaultAcc = createAccount(STUDIONET_DEFAULT_PK);
-    return setAccountState(defaultAcc);
-  };
-
-  // Generate a brand new keypair and persist
-  const generateNewWallet = () => {
-    const acc = createAccount();
-    if (acc && acc.privateKey) {
-      try {
-        localStorage.setItem('genlayer_aerogreen_pk', acc.privateKey);
-      } catch (e) {}
-    }
-    return setAccountState(acc);
-  };
-
-  // Read Contract State
   const fetchFlightsState = useCallback(async () => {
     if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') return;
     setLoading(true);
@@ -208,11 +151,12 @@ export function useAeroGreen() {
     }
   }, []);
 
-  // Write: Register Flight ESG Stake
+  // Register Flight ESG Stake
   const registerFlightEsgStake = async (flightCode, flightLogUrl, stakeAmountGen) => {
-    const activeAccount = glAccount || getStoredAccount();
+    let currentAccount = glAccount || getOrCreateGenLayerAccount();
     if (!glAccount) {
-      setAccountState(activeAccount);
+      setGlAccount(currentAccount);
+      setAddress(currentAccount.address);
     }
     if (!CONTRACT_ADDRESS) {
       throw new Error('Contract address not configured');
@@ -224,7 +168,7 @@ export function useAeroGreen() {
     setTxStatus(`Registering flight ${flightCode} & locking ${stakeAmountGen} GEN ESG collateral...`);
 
     try {
-      const client = getWriteClient(activeAccount);
+      const client = getWriteClient(currentAccount);
       const valueWei = parseGen(stakeAmountGen);
       
       const hash = await client.writeContract({
@@ -258,11 +202,12 @@ export function useAeroGreen() {
     }
   };
 
-  // Write: Audit Flight Carbon Offset
+  // Audit Flight Carbon Offset
   const auditFlightCarbonOffset = async (flightId, carbonRegistryUrl) => {
-    const activeAccount = glAccount || getStoredAccount();
+    let currentAccount = glAccount || getOrCreateGenLayerAccount();
     if (!glAccount) {
-      setAccountState(activeAccount);
+      setGlAccount(currentAccount);
+      setAddress(currentAccount.address);
     }
     if (!CONTRACT_ADDRESS) {
       throw new Error('Contract address not configured');
@@ -274,7 +219,7 @@ export function useAeroGreen() {
     setTxStatus(`Auditing carbon offset for flight #${flightId}...`);
 
     try {
-      const client = getWriteClient(activeAccount);
+      const client = getWriteClient(currentAccount);
       const hash = await client.writeContract({
         address: CONTRACT_ADDRESS,
         functionName: 'audit_flight_carbon_offset',
@@ -305,11 +250,12 @@ export function useAeroGreen() {
     }
   };
 
-  // Write: Recover ESG Stake
+  // Recover ESG Stake
   const recoverEsgStake = async (flightId) => {
-    const activeAccount = glAccount || getStoredAccount();
+    let currentAccount = glAccount || getOrCreateGenLayerAccount();
     if (!glAccount) {
-      setAccountState(activeAccount);
+      setGlAccount(currentAccount);
+      setAddress(currentAccount.address);
     }
     if (!CONTRACT_ADDRESS) {
       throw new Error('Contract address not configured');
@@ -321,7 +267,7 @@ export function useAeroGreen() {
     setTxStatus(`Recovering ESG collateral stake for flight #${flightId}...`);
 
     try {
-      const client = getWriteClient(activeAccount);
+      const client = getWriteClient(currentAccount);
       const hash = await client.writeContract({
         address: CONTRACT_ADDRESS,
         functionName: 'recover_esg_stake',
@@ -352,7 +298,7 @@ export function useAeroGreen() {
     }
   };
 
-  // Fetch initial flights data on mount
+  // Fetch initial flights data on mount without triggering wallet popup
   useEffect(() => {
     if (CONTRACT_ADDRESS && CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000') {
       fetchFlightsState();
@@ -369,9 +315,6 @@ export function useAeroGreen() {
     txHash,
     txStatus,
     connectWallet,
-    switchAccount,
-    resetToDefaultWallet,
-    generateNewWallet,
     fetchFlightsState,
     registerFlightEsgStake,
     auditFlightCarbonOffset,
