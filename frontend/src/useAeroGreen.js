@@ -30,11 +30,14 @@ function getReadClient() {
 }
 
 function getWriteClient(account) {
+  if (typeof account === 'string') {
+    return createClient({ chain: customStudionet, account: account });
+  }
   return createClient({ chain: customStudionet, account });
 }
 
-// Get or create persistent GenLayer StudioNet Account (so address on UI matches transaction signer 100%)
-function getOrCreateGenLayerAccount() {
+// Fallback account generator for environments without MetaMask
+function getFallbackAccount() {
   if (typeof window === 'undefined') return createAccount();
   try {
     const savedPk = localStorage.getItem('aerogreen_genlayer_pk');
@@ -93,16 +96,27 @@ export function useAeroGreen() {
   const [txHash, setTxHash] = useState('');
   const [txStatus, setTxStatus] = useState('');
 
-  // Explicitly connect or activate GenLayer StudioNet Wallet
+  // Connects directly to user's MetaMask wallet when clicked
   const connectWallet = useCallback(async () => {
     try {
-      const acc = getOrCreateGenLayerAccount();
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts && accounts.length > 0) {
+          const userAddr = accounts[0];
+          setAddress(userAddr);
+          setGlAccount(userAddr);
+          return userAddr;
+        }
+      }
+      
+      // Fallback if MetaMask is not installed
+      const acc = getFallbackAccount();
       setGlAccount(acc);
       setAddress(acc.address);
       return acc.address;
     } catch (err) {
-      console.error('Wallet connect error:', err);
-      const acc = createAccount();
+      console.error('MetaMask connect error:', err);
+      const acc = getFallbackAccount();
       setGlAccount(acc);
       setAddress(acc.address);
       return acc.address;
@@ -153,11 +167,27 @@ export function useAeroGreen() {
 
   // Register Flight ESG Stake
   const registerFlightEsgStake = async (flightCode, flightLogUrl, stakeAmountGen) => {
-    let currentAccount = glAccount || getOrCreateGenLayerAccount();
-    if (!glAccount) {
-      setGlAccount(currentAccount);
-      setAddress(currentAccount.address);
+    let currentAccount = glAccount;
+    if (!currentAccount) {
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          if (accounts && accounts.length > 0) {
+            currentAccount = accounts[0];
+            setGlAccount(currentAccount);
+            setAddress(currentAccount);
+          }
+        } catch (e) {
+          console.warn('MetaMask connect failed:', e);
+        }
+      }
+      if (!currentAccount) {
+        currentAccount = getFallbackAccount();
+        setGlAccount(currentAccount);
+        setAddress(typeof currentAccount === 'string' ? currentAccount : currentAccount.address);
+      }
     }
+
     if (!CONTRACT_ADDRESS) {
       throw new Error('Contract address not configured');
     }
@@ -204,11 +234,27 @@ export function useAeroGreen() {
 
   // Audit Flight Carbon Offset
   const auditFlightCarbonOffset = async (flightId, carbonRegistryUrl) => {
-    let currentAccount = glAccount || getOrCreateGenLayerAccount();
-    if (!glAccount) {
-      setGlAccount(currentAccount);
-      setAddress(currentAccount.address);
+    let currentAccount = glAccount;
+    if (!currentAccount) {
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          if (accounts && accounts.length > 0) {
+            currentAccount = accounts[0];
+            setGlAccount(currentAccount);
+            setAddress(currentAccount);
+          }
+        } catch (e) {
+          console.warn('MetaMask connect failed:', e);
+        }
+      }
+      if (!currentAccount) {
+        currentAccount = getFallbackAccount();
+        setGlAccount(currentAccount);
+        setAddress(typeof currentAccount === 'string' ? currentAccount : currentAccount.address);
+      }
     }
+
     if (!CONTRACT_ADDRESS) {
       throw new Error('Contract address not configured');
     }
@@ -252,11 +298,27 @@ export function useAeroGreen() {
 
   // Recover ESG Stake
   const recoverEsgStake = async (flightId) => {
-    let currentAccount = glAccount || getOrCreateGenLayerAccount();
-    if (!glAccount) {
-      setGlAccount(currentAccount);
-      setAddress(currentAccount.address);
+    let currentAccount = glAccount;
+    if (!currentAccount) {
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          if (accounts && accounts.length > 0) {
+            currentAccount = accounts[0];
+            setGlAccount(currentAccount);
+            setAddress(currentAccount);
+          }
+        } catch (e) {
+          console.warn('MetaMask connect failed:', e);
+        }
+      }
+      if (!currentAccount) {
+        currentAccount = getFallbackAccount();
+        setGlAccount(currentAccount);
+        setAddress(typeof currentAccount === 'string' ? currentAccount : currentAccount.address);
+      }
     }
+
     if (!CONTRACT_ADDRESS) {
       throw new Error('Contract address not configured');
     }
@@ -297,6 +359,24 @@ export function useAeroGreen() {
       setLoading(false);
     }
   };
+
+  // Listen to MetaMask account switches
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      const handleAccountsChanged = (accounts) => {
+        if (accounts && accounts.length > 0) {
+          setAddress(accounts[0]);
+          setGlAccount(accounts[0]);
+        }
+      };
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      return () => {
+        if (window.ethereum.removeListener) {
+          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        }
+      };
+    }
+  }, []);
 
   // Fetch initial flights data on mount without triggering wallet popup
   useEffect(() => {
