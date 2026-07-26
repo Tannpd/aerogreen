@@ -75,30 +75,36 @@ export function useAeroGreen() {
   const [txHash, setTxHash] = useState('');
   const [txStatus, setTxStatus] = useState('');
 
-  const connectWallet = async () => {
+  const connectWallet = useCallback(async () => {
     try {
       let selectedAddr = '';
       if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        if (accounts && accounts.length > 0) {
-          selectedAddr = accounts[0];
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          if (accounts && accounts.length > 0) {
+            selectedAddr = accounts[0];
+          }
+        } catch (e) {
+          console.warn('MetaMask connect skipped or rejected:', e);
         }
       }
+      
+      const acc = createAccount();
       if (!selectedAddr) {
-        selectedAddr = '0x8aB6Fd746F8928E116fd14850DE855a8A10eea13';
+        selectedAddr = acc.address || '0x8aB6Fd746F8928E116fd14850DE855a8A10eea13';
       }
       setAddress(selectedAddr);
-      const acc = createAccount(selectedAddr);
       setGlAccount(acc);
       return selectedAddr;
     } catch (err) {
       console.error('Wallet connect error:', err);
-      const fallbackAddr = '0x8aB6Fd746F8928E116fd14850DE855a8A10eea13';
+      const acc = createAccount();
+      const fallbackAddr = acc.address || '0x8aB6Fd746F8928E116fd14850DE855a8A10eea13';
       setAddress(fallbackAddr);
-      setGlAccount(createAccount(fallbackAddr));
+      setGlAccount(acc);
       return fallbackAddr;
     }
-  };
+  }, []);
 
   const fetchFlightsState = useCallback(async () => {
     if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') return;
@@ -144,16 +150,23 @@ export function useAeroGreen() {
 
   // Register Flight ESG Stake
   const registerFlightEsgStake = async (flightCode, flightLogUrl, stakeAmountGen) => {
-    if (!glAccount || !CONTRACT_ADDRESS) {
-      throw new Error('Wallet not connected');
+    let currentAccount = glAccount;
+    if (!currentAccount) {
+      currentAccount = createAccount();
+      setGlAccount(currentAccount);
+      setAddress(currentAccount.address);
     }
+    if (!CONTRACT_ADDRESS) {
+      throw new Error('Contract address not configured');
+    }
+
     setLoading(true);
     setError('');
     setTxHash('');
     setTxStatus(`Registering flight ${flightCode} & locking ${stakeAmountGen} GEN ESG collateral...`);
 
     try {
-      const client = getWriteClient(glAccount);
+      const client = getWriteClient(currentAccount);
       const valueWei = parseGen(stakeAmountGen);
       
       const hash = await client.writeContract({
@@ -189,16 +202,23 @@ export function useAeroGreen() {
 
   // Audit Flight Carbon Offset
   const auditFlightCarbonOffset = async (flightId, carbonRegistryUrl) => {
-    if (!glAccount || !CONTRACT_ADDRESS) {
-      throw new Error('Wallet not connected');
+    let currentAccount = glAccount;
+    if (!currentAccount) {
+      currentAccount = createAccount();
+      setGlAccount(currentAccount);
+      setAddress(currentAccount.address);
     }
+    if (!CONTRACT_ADDRESS) {
+      throw new Error('Contract address not configured');
+    }
+
     setLoading(true);
     setError('');
     setTxHash('');
     setTxStatus(`Auditing carbon offset for flight #${flightId}...`);
 
     try {
-      const client = getWriteClient(glAccount);
+      const client = getWriteClient(currentAccount);
       const hash = await client.writeContract({
         address: CONTRACT_ADDRESS,
         functionName: 'audit_flight_carbon_offset',
@@ -231,16 +251,23 @@ export function useAeroGreen() {
 
   // Recover ESG Stake
   const recoverEsgStake = async (flightId) => {
-    if (!glAccount || !CONTRACT_ADDRESS) {
-      throw new Error('Wallet not connected');
+    let currentAccount = glAccount;
+    if (!currentAccount) {
+      currentAccount = createAccount();
+      setGlAccount(currentAccount);
+      setAddress(currentAccount.address);
     }
+    if (!CONTRACT_ADDRESS) {
+      throw new Error('Contract address not configured');
+    }
+
     setLoading(true);
     setError('');
     setTxHash('');
     setTxStatus(`Recovering ESG collateral stake for flight #${flightId}...`);
 
     try {
-      const client = getWriteClient(glAccount);
+      const client = getWriteClient(currentAccount);
       const hash = await client.writeContract({
         address: CONTRACT_ADDRESS,
         functionName: 'recover_esg_stake',
@@ -270,6 +297,11 @@ export function useAeroGreen() {
       setLoading(false);
     }
   };
+
+  // Auto connect wallet on mount
+  useEffect(() => {
+    connectWallet();
+  }, [connectWallet]);
 
   useEffect(() => {
     if (address && CONTRACT_ADDRESS && CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000') {
