@@ -1,131 +1,64 @@
-# ✈️ AeroGreen — Aviation Net-Zero Flight & Carbon Offset ESG Audit Protocol
+# AeroGreen // Autonomous Aviation Net-Zero & Carbon Offset Audit Protocol
 
-[![GenLayer Version](https://img.shields.io/badge/GenLayer-v0.2.16-10B981?style=for-the-badge)](https://genlayer.com)
-[![Status](https://img.shields.io/badge/StudioNet-Deployed-00F0FF?style=for-the-badge)](https://studio.genlayer.com)
-[![Live Web](https://img.shields.io/badge/Vercel-Live_App-000000?style=for-the-badge&logo=vercel)](https://aerogreen-app.vercel.app)
-[![License](https://img.shields.io/badge/License-MIT-purple.svg?style=for-the-badge)](LICENSE)
-
-> **Autonomous Aviation Net-Zero Flight & Carbon Credit Verification Protocol with Automatic Greenwashing Collateral Slashing powered by GenLayer Intelligent Contracts v0.2.16.**
+[![GenLayer v0.2.16 Compatible](https://img.shields.io/badge/GenLayer-v0.2.16-00F0FF?style=for-the-badge&logo=python)](https://genlayer.com)
+[![Build Status](https://img.shields.io/badge/Tests-10%2F10%20PASSING-10B981?style=for-the-badge)](https://github.com/Tannpd/aerogreen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F43F5E?style=for-the-badge)](LICENSE)
 
 ---
 
-## 📍 Deployed Network Details
+## 📌 Problem Overview
+Commercial airlines heavily advertise **"Net-Zero Flights"** by claiming to offset flight Jet-A1 carbon emissions through carbon credits. However, greenwashing fraud is rampant: airlines often under-report fuel consumption or purchase unverified, expired, or junk carbon credits.
 
-* **Intelligent Contract Address (StudioNet)**: `0x54FF25A9540d256e17bB4C1534A8BB5F87d0fE66`
-* **Live Production dApp**: [https://aerogreen-app.vercel.app](https://aerogreen-app.vercel.app)
-* **GitHub Repository**: [https://github.com/Tannpd/aerogreen](https://github.com/Tannpd/aerogreen)
-* **Public Climate Action Fund Address**: `0x000000000000000000000000000000000000C11M`
+**AeroGreen** solves this by implementing an **autonomous aviation ESG collateral vault protocol** powered by GenLayer's Non-Deterministic AI Consensus.
 
 ---
 
-## 💡 Problem Statement & Real-World Impact
+## 🏛️ Architecture & Verification Command
 
-### ❌ Commercial Aviation Greenwashing Fraud
-Airlines frequently market flight routes as "100% Carbon Neutral" or "Net-Zero", collecting eco-premium ticket fees from passengers while purchasing cheap, unverified, or junk carbon offset credits that cover less than 10% of actual Jet-A1 fuel CO2 emissions.
+### Passing GenLayer Validation & Unit Test Command
 
-### 🚀 The AeroGreen Autonomous Solution
-**AeroGreen** forces commercial airlines to lock a GEN collateral stake into an ESG guarantee vault when registering flight routes. GenLayer AI validator nodes scrape BOTH the flight's Jet-A1 fuel consumption telemetry log and the official retired carbon credit certificate URL via `gl.nondet.web.render`. A Lead Aviation ESG Inspector LLM prompt calculates exact flight CO2 emissions versus retired carbon credit volume and registry standard (Gold Standard, Verra VCS).
-
-* **Valid Offset ($\ge$ 90% CO2 Coverage)**: Flight earns a **Verified Net-Zero Badge**, preserving the airline's collateral stake.
-* **Greenwashed Offset (< 90% CO2 Coverage)**: Airline's collateral is **100% Slashed** directly to a public climate action fund.
-
----
-
-## 🏗️ Technical Architecture & GenLayer v0.2.16 Standards
-
-```
-                                  +---------------------------------------+
-                                  |   Flight Fuel Telemetry Log URL       |
-                                  +-------------------+-------------------+
-                                                      |
-+---------------------+    register_flight_esg_stake()| (Bound on-chain)
-|  Airline Wallet     | ------------------------------+-------------------> +-----------------------------+
-+---------------------+  Locks ESG Stake (GEN)                            |  AeroGreen ESG Collateral   |
-                                                                          |  Contract Vault             |
-                           audit_flight_carbon_offset(carbon_url)         |                             |
-                                ----------------------------------------> +--------------+--------------+
-                                                                                         |
-                                                                                         | gl.vm.run_nondet_unsafe()
-                                                                                         v
-                                                                          +-----------------------------+
-                                                                          | GenLayer AI Validator Nodes |
-                                                                          +--------------+--------------+
-                                                                                         |
-                                           +---------------------------------------------+---------------------------------------------+
-                                           |                                                                                           |
-                                           v                                                                                           v
-                    [is_greenwashed == false (Score >= 60%)]                                                    [is_greenwashed == true (Score < 60%)]
-                                           |                                                                                           |
-                                           v                                                                                           v
-                        +------------------------------------+                                                      +------------------------------------+
-                        | Verified Net-Zero Badge Granted    |                                                      | 100% Collateral Stake Slashed to   |
-                        | Status: VERIFIED                   |                                                      | Public Climate Action Fund         |
-                        | Airline Can Recover ESG Stake      |                                                      | Status: SLASHED                    |
-                        +------------------------------------+                                                      +------------------------------------+
-```
-
-### 🔒 Key Contract Rules & Safety Compliance
-1. **Strict Boolean Type Validation**:
-   - Evaluates `isinstance(raw_gw, bool)` in Leader, Validator, and Settlement execution paths. Rejects string booleans (e.g. `"false"`).
-2. **Fail-Closed Consensus Security**:
-   - If web fetching or LLM execution fails, `validator_fn` returns `False`, preserving airline collateral without slashing on network errors.
-3. **Unsuppressed Token Transfers**:
-   - Executes `other_contract.emit_transfer(...)` without `try/except` suppression to ensure atomic state reverts on transfer failures.
-4. **Access Control**:
-   - Only the registered airline (`sender == flight_airline`) can recover collateral stakes from verified clean flights.
-
----
-
-## 🧪 Automated Unit Test Verification
-
-The contract includes a complete `unittest` test suite covering all 7 core execution paths:
-
-```powershell
-# Run unit tests inside python virtual environment
-cd D:\Gen\AeroGreen
-.venv\Scripts\python -m unittest tests/test_aerogreen.py -v
-```
-
-### Test Results Summary:
-* `test_register_flight_esg_stake_payable`: **OK** (Locks collateral & binds flight log URL).
-* `test_audit_valid_offset_verifies_flight`: **OK** (Gold Standard offset verifies flight).
-* `test_audit_junk_offset_slashes_airline_stake`: **OK** (Junk offset slashes 100% to Climate Fund).
-* `test_recover_esg_stake_clean_airline`: **OK** (Verified clean airline recovers ESG stake).
-* `test_failed_fetch_does_not_slash_stake`: **OK** (Fail-closed safety preserves stake on fetch error).
-* `test_strict_boolean_validation_rejects_string`: **OK** (String `"false"` is rejected).
-* `test_reproducible_compilation`: **OK** (Syntax & compilation verified).
-
----
-
-## 🔗 Live Mock Test Files
-
-Use these pre-hosted endpoints to test the live Web App or GenLayer Studio:
-
-* **Flight Fuel Telemetry Log**: [https://aerogreen-app.vercel.app/mock_flight_telemetry_log.txt](https://aerogreen-app.vercel.app/mock_flight_telemetry_log.txt)
-* **Valid Carbon Offset Certificate (Verified)**: [https://aerogreen-app.vercel.app/mock_valid_carbon_offset.txt](https://aerogreen-app.vercel.app/mock_valid_carbon_offset.txt)
-* **Junk Carbon Offset Certificate (100% Slashed)**: [https://aerogreen-app.vercel.app/mock_junk_carbon_offset.txt](https://aerogreen-app.vercel.app/mock_junk_carbon_offset.txt)
-
----
-
-## 💻 Local Development & Build Setup
+To verify the Intelligent Contract syntax, state machine, and consensus safety rules, execute:
 
 ```bash
-# Clone the repository
-git clone https://github.com/Tannpd/aerogreen.git
-cd aerogreen/frontend
+# Run 100% automated test suite
+python -m unittest discover -s tests -p "test_*.py" -v
+```
 
-# Install dependencies
-npm install
+Output:
+```text
+test_audit_access_control_unauthorized ... ok
+test_audit_junk_offset_slashes_airline_stake ... ok
+test_audit_valid_offset_verifies_flight ... ok
+test_failed_fetch_does_not_slash_stake ... ok
+test_prevent_certificate_reuse ... ok
+test_recover_esg_stake_clean_airline ... ok
+test_register_flight_esg_stake_payable ... ok
+test_reproducible_compilation ... ok
+test_strict_boolean_validation_rejects_string ... ok
+test_unauthorized_telemetry_domain_rejected ... ok
 
-# Run dev server
-npm run dev
-
-# Build for production
-npm run build
+Ran 10 tests in 0.006s
+OK
 ```
 
 ---
 
-## 📜 License
+## 🛡️ Security & Protocol Safeguards
 
-Distributed under the MIT License. See `LICENSE` for details.
+1. **Authenticated Telemetry Domain Origin**: Restricts flight telemetry logs to authorized, whitelisted sources (`https://flightaware.com/`, `https://flightradar24.com/`, `https://iata.org/`, `https://aerogreen-app.vercel.app/`).
+2. **Authoritative Carbon Registry Domain Safeguard**: Restricts offset certificates to verified registries (`https://verra.org/`, `https://goldstandard.org/`, `https://corsia.icao.int/`).
+3. **Access Control (Audit Authorization)**: Restricts `audit_flight_carbon_offset` to authenticated airline owners or authorized auditors, preventing unauthorized third-party manipulation.
+4. **Certificate Anti-Reuse Tracking (`used_certificates`)**: Prevents airlines from double-counting or redeeming the same carbon credit certificate across multiple flight audits.
+5. **Direct ICAO Mathematical Emissions Coverage Calculation**: Enforces mathematical ICAO fuel-to-CO2 calculation (`Jet-A1_fuel_tons * 3.16` = CO2 emitted) vs retired carbon credit volume, requiring $\ge 90\%$ coverage for verification.
+6. **Fail-Closed Consensus & Strict Boolean Type Validation**: Rejects string boolean coercions and returns `FAILED` on scrape errors to preserve airline collateral stakes.
+
+---
+
+## ⚙️ Contract API Summary
+
+* `register_flight_esg_stake(flight_code: str, flight_log_url: str) -> int` (payable)
+* `audit_flight_carbon_offset(flight_id: int, carbon_registry_url: str) -> None`
+* `recover_esg_stake(flight_id: int) -> None`
+* `get_flight(flight_id: int) -> str`
+* `get_flights_count() -> int`
+* `is_certificate_used(certificate_url: str) -> bool`

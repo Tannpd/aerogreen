@@ -105,6 +105,8 @@ mock_gl.TreeMap = dict
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../contracts')))
 import aerogreen
 
+UserError = aerogreen.UserError
+
 class TestAeroGreen(unittest.TestCase):
     def setUp(self):
         mock_gl.message = MockMessage(sender="0x1111111111111111111111111111111111111111", value=10000000000000000000)
@@ -122,7 +124,7 @@ class TestAeroGreen(unittest.TestCase):
         """Verify register_flight_esg_stake locks GEN collateral and binds flight_log_url."""
         airline = "0x1111111111111111111111111111111111111111"
         code = "VN-302"
-        log_url = "https://aerogreen.vercel.app/mock_flight_telemetry_log.txt"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
         mock_gl.message = MockMessage(sender=airline, value=10000000000000000000)
 
         fid = self.contract.register_flight_esg_stake(code, log_url)
@@ -138,12 +140,59 @@ class TestAeroGreen(unittest.TestCase):
         self.assertEqual(flight["esg_stake"], 10000000000000000000)
         self.assertEqual(flight["status"], "REGISTERED")
 
+    def test_unauthorized_telemetry_domain_rejected(self):
+        """Verify un-whitelisted flight telemetry log URL is rejected."""
+        airline = "0x1111111111111111111111111111111111111111"
+        mock_gl.message = MockMessage(sender=airline, value=1000)
+        with self.assertRaises(UserError):
+            self.contract.register_flight_esg_stake("VN-302", "https://unauthorized-airline-fake-server.com/log.txt")
+
+    def test_audit_access_control_unauthorized(self):
+        """Verify unauthorized caller cannot initiate an audit on another airline's flight."""
+        airline = "0x1111111111111111111111111111111111111111"
+        attacker = "0x9999999999999999999999999999999999999999"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
+        offset_url = "https://verra.org/certificate_123.txt"
+
+        mock_gl.message = MockMessage(sender=airline, value=1000)
+        fid = self.contract.register_flight_esg_stake("AF-118", log_url)
+
+        mock_gl.message = MockMessage(sender=attacker)
+        with self.assertRaises(UserError):
+            self.contract.audit_flight_carbon_offset(fid, offset_url)
+
+    def test_prevent_certificate_reuse(self):
+        """Verify carbon credit certificate cannot be reused for multiple flight audits."""
+        airline = "0x1111111111111111111111111111111111111111"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
+        offset_url = "https://goldstandard.org/cert_gold_99.txt"
+
+        # Flight 0 audit
+        mock_gl.message = MockMessage(sender=airline, value=1000)
+        f0 = self.contract.register_flight_esg_stake("VN-100", log_url)
+
+        mock_gl.nondet.exec_prompt_responses = [
+            json.dumps({"is_greenwashed": False, "audit_score": 95, "audit_reasoning": "Valid offset"})
+        ]
+        mock_gl.message = MockMessage(sender=airline)
+        self.contract.audit_flight_carbon_offset(f0, offset_url)
+
+        self.assertTrue(self.contract.is_certificate_used(offset_url))
+
+        # Flight 1 attempt with same certificate MUST fail
+        mock_gl.message = MockMessage(sender=airline, value=1000)
+        f1 = self.contract.register_flight_esg_stake("VN-200", log_url)
+
+        mock_gl.message = MockMessage(sender=airline)
+        with self.assertRaises(UserError):
+            self.contract.audit_flight_carbon_offset(f1, offset_url)
+
     def test_audit_junk_offset_slashes_airline_stake(self):
         """Verify junk offset audit slashes airline collateral 100% to public climate fund."""
         airline = "0x1111111111111111111111111111111111111111"
         code = "VN-302"
-        log_url = "https://aerogreen.vercel.app/mock_flight_telemetry_log.txt"
-        offset_url = "https://aerogreen.vercel.app/mock_junk_carbon_offset.txt"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
+        offset_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_junk_offset.txt"
 
         mock_gl.message = MockMessage(sender=airline, value=8000000000000000000)
         self.contract.register_flight_esg_stake(code, log_url)
@@ -175,8 +224,8 @@ class TestAeroGreen(unittest.TestCase):
         """Verify authentic carbon offset verifies flight and preserves airline collateral."""
         airline = "0x1111111111111111111111111111111111111111"
         code = "AF-118"
-        log_url = "https://aerogreen.vercel.app/mock_flight_telemetry_log.txt"
-        offset_url = "https://aerogreen.vercel.app/mock_valid_carbon_offset.txt"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
+        offset_url = "https://goldstandard.org/cert_valid_a350.txt"
 
         mock_gl.message = MockMessage(sender=airline, value=12000000000000000000)
         self.contract.register_flight_esg_stake(code, log_url)
@@ -206,8 +255,8 @@ class TestAeroGreen(unittest.TestCase):
         """Verify verified clean airline can recover their ESG collateral stake."""
         airline = "0x1111111111111111111111111111111111111111"
         code = "AF-118"
-        log_url = "https://aerogreen.vercel.app/mock_flight_telemetry_log.txt"
-        offset_url = "https://aerogreen.vercel.app/mock_valid_carbon_offset.txt"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
+        offset_url = "https://goldstandard.org/cert_recover_clean.txt"
 
         mock_gl.message = MockMessage(sender=airline, value=5000000000000000000)
         self.contract.register_flight_esg_stake(code, log_url)
@@ -237,8 +286,8 @@ class TestAeroGreen(unittest.TestCase):
         """Verify failed web fetch returns is_greenwashed = False and sets FAILED status preserving stake."""
         airline = "0x1111111111111111111111111111111111111111"
         code = "VN-302"
-        log_url = "https://aerogreen.vercel.app/mock_flight_telemetry_log.txt"
-        offset_url = "https://broken-registry.org/offset"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
+        offset_url = "https://verra.org/broken_offset.txt"
 
         mock_gl.message = MockMessage(sender=airline, value=3000000000000000000)
         self.contract.register_flight_esg_stake(code, log_url)
@@ -259,8 +308,8 @@ class TestAeroGreen(unittest.TestCase):
         """Verify string boolean 'true' or 'false' in LLM output is rejected as non-boolean."""
         airline = "0x1111111111111111111111111111111111111111"
         code = "VN-302"
-        log_url = "https://aerogreen.vercel.app/mock_flight_telemetry_log.txt"
-        offset_url = "https://fake-link.com/offset"
+        log_url = "https://raw.githubusercontent.com/Tannpd/aerogreen/main/public/mock_flight_log.txt"
+        offset_url = "https://verra.org/fake_offset.txt"
 
         mock_gl.message = MockMessage(sender=airline, value=1000000000000000000)
         self.contract.register_flight_esg_stake(code, log_url)
